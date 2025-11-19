@@ -1,0 +1,95 @@
+import glob
+import pandas as pd
+import re
+import os
+from pypdf import PdfReader
+
+print("Sar Sai Periyava 1")
+
+# Helper function to extract raw text (same as before)
+def extract_text_from_pdf(pdf_path):
+    text = ""
+    try:
+        with open(pdf_path, 'rb') as f:
+            reader = PdfReader(f)
+            for page in reader.pages:
+                text += page.extract_text() + "\n"
+    except Exception as e:
+        print(f"Error reading {pdf_path}: {e}")
+        text = "Extraction Failed"
+    return text
+
+# Function to generate a DataFrame from all PDFs in a folder
+def get_pdf_data_frame(directory_path):
+    pdf_files = glob.glob(os.path.join(directory_path, '*.pdf'), recursive=True)
+    if not pdf_files:
+        print(f"Warning: No PDF files found in: {directory_path}")
+        return pd.DataFrame()
+
+    data_rows = []
+    for file_path in pdf_files:
+        full_text = extract_text_from_pdf(file_path)
+        # For the RAG pipeline, we just need the filename and all text for now
+        data_rows.append({
+            "Source_Type": "PDF",
+            "Source_File": os.path.basename(file_path),
+            "Content": full_text
+        })
+    
+    return pd.DataFrame(data_rows)
+
+
+
+def get_excel_data_frame(excel_path):
+    if not os.path.exists(excel_path):
+        print(f"Error: Excel file not found at: {excel_path}")
+        return pd.DataFrame()
+    
+    try:
+        # Assuming the Excel file has relevant columns like 'CustomerName', 'ProductID', etc.
+        df_excel = pd.read_excel(excel_path)
+        # Add source type column for tracking
+        df_excel['Source_Type'] = 'Excel'
+        df_excel['Source_File'] = os.path.basename(excel_path)
+        
+        # We need a unified 'Content' column later for the RAG indexer
+        # For now, just load the data as is.
+        return df_excel
+
+    except Exception as e:
+        print(f"Error reading Excel file: {e}")
+        return pd.DataFrame()
+
+
+def prepare_unified_dataset(pdf_dir, excel_file_path):
+    # Get PDF data
+    df_pdfs = get_pdf_data_frame(pdf_dir)
+    
+    # Get Excel data
+    df_excel = get_excel_data_frame(excel_file_path)
+    
+    # Optional: Combine the DataFrames if their columns align nicely, 
+    # but for an NLP system, we usually process them slightly differently.
+
+    print(f"\nLoaded {len(df_pdfs)} PDF records.")
+    print(f"Loaded {len(df_excel)} Excel records.")
+
+    # In the next phase, we will process both of these data sources 
+    # into a single Vector Database index.
+    
+    return df_pdfs, df_excel
+
+# --- Main Execution ---
+if __name__ == "__main__":
+    # !!! Define your paths here !!!
+    PDF_DIRECTORY = './your_pdf_folder'
+    EXCEL_DATABASE_PATH = './your_database/your_database.xlsx' # E.g., 'customer_details.xlsx'
+
+    pdf_data, excel_data = prepare_unified_dataset(PDF_DIRECTORY, EXCEL_DATABASE_PATH)
+    
+    # Display the first few rows of loaded data for confirmation
+    print("\n--- PDF Data Sample ---")
+    print(pdf_data.head().to_markdown(index=False))
+    
+    print("\n--- Excel Data Sample ---")
+    print(excel_data.head().to_markdown(index=False))
