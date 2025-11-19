@@ -1,0 +1,145 @@
+# pseudo_project/qa_system.py
+
+import pandas as pd
+from typing import List, Dict, Any
+
+# ----- STEP 0: Setup & Ingestion -----
+
+def load_excel_db(excel_path: str) -> Dict[str, pd.DataFrame]:
+    """
+    Load all sheets from an Excel workbook into a dict: {sheet_name: DataFrame}.
+    """
+    return pd.read_excel(excel_path, sheet_name=None)
+
+
+def index_pdfs(pdf_paths: List[str], vector_store_path: str):
+    """
+    1. Extract text from PDFs (page by page).
+    2. Chunk text.
+    3. Create embeddings.
+    4. Store in FAISS/Chroma with metadata.
+    """
+    # Pseudocode:
+    # for each pdf:
+    #   for each page:
+    #       text = extract_text(page)
+    #       chunks = chunk_text(text)
+    #       for chunk in chunks:
+    #           embedding = embed(chunk)
+    #           add_to_vector_store(embedding, metadata={pdf_name, page_no, chunk_text})
+    pass
+
+
+# ----- STEP 1: Retrieve from PDFs -----
+
+def retrieve_pdf_context(question: str, k: int = 5) -> List[Dict[str, Any]]:
+    """
+    Embed the question, perform semantic search in the PDF vector store, 
+    and return top-k chunks with metadata.
+    """
+    # embedding = embed(question)
+    # results = vector_store.search(embedding, top_k=k)
+    # return list of dicts: [{"chunk": ..., "pdf": ..., "page": ...}, ...]
+    return []
+
+
+# ----- STEP 2: Use PDF context to query Excel -----
+
+def infer_excel_query(question: str, pdf_context: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """
+    Use an LLM (or rule-based logic) to decide:
+      - which sheet(s) to query
+      - which columns to filter on
+      - filter values
+      - what aggregation or computation to perform
+
+    Returns a simple query spec, e.g.:
+      {
+        "sheet": "warranty_limits",
+        "filters": {"policy_code": "POLICY_WAR_2024", "country": "India"},
+        "aggregation": {"column": "max_claim_amount", "op": "max"}
+      }
+    """
+    query_spec = {
+        "sheet": None,
+        "filters": {},
+        "aggregation": None
+    }
+    # Here you'd call an LLM with (question + pdf_context_as_text) and parse its output
+    return query_spec
+
+
+def run_excel_query(query_spec: Dict[str, Any], excel_db: Dict[str, pd.DataFrame]) -> Any:
+    """
+    Execute the query_spec on the loaded Excel DataFrames.
+    """
+    sheet = query_spec.get("sheet")
+    if not sheet or sheet not in excel_db:
+        return None
+
+    df = excel_db[sheet].copy()
+    # Apply filters
+    for col, val in (query_spec.get("filters") or {}).items():
+        df = df[df[col] == val]
+
+    agg = query_spec.get("aggregation")
+    if agg:
+        col = agg["column"]
+        op = agg["op"]
+        if op == "max":
+            return df[col].max()
+        elif op == "min":
+            return df[col].min()
+        elif op == "sum":
+            return df[col].sum()
+        # etc...
+    else:
+        # Return the raw filtered rows
+        return df
+
+
+# ----- STEP 3: Generate natural language answer -----
+
+def generate_answer(question: str,
+                    pdf_context: List[Dict[str, Any]],
+                    excel_result: Any) -> str:
+    """
+    Use an LLM to convert pdf_context + excel_result into a friendly answer.
+    """
+    # Build a prompt with:
+    # - User question
+    # - Summary of PDF snippets (with pdf/page references)
+    # - A textual summary of excel_result
+    #
+    # Then call LLM and return its generated text.
+    #
+    # For now, a very simple placeholder:
+
+    context_snippets = "\n".join(
+        f"- {c['chunk']} (Source: {c['pdf']}, page {c['page']})"
+        for c in pdf_context
+    )
+
+    return (
+        f"Question: {question}\n\n"
+        f"From the documents, here is what I found:\n{context_snippets}\n\n"
+        f"From the Excel data, the relevant value/result is: {excel_result}\n\n"
+        f"Putting this together, the answer is: ... (LLM-generated explanation here)."
+    )
+
+
+# ----- MAIN PIPELINE FUNCTION -----
+
+def answer_user_question(question: str,
+                         excel_db: Dict[str, pd.DataFrame]) -> str:
+    """
+    Full pipeline:
+      1. Retrieve PDF context.
+      2. Infer & run Excel query.
+      3. Generate friendly answer.
+    """
+    pdf_context = retrieve_pdf_context(question)
+    query_spec = infer_excel_query(question, pdf_context)
+    excel_result = run_excel_query(query_spec, excel_db)
+    answer = generate_answer(question, pdf_context, excel_result)
+    return answer
