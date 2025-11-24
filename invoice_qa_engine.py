@@ -1,0 +1,681 @@
+"""
+invoice_qa_engine.py
+
+Core helper functions for asking analytics questions about invoices using
+model-generated (or manually written) pandas code.
+
+Designed to work with:
+- your_database.xlsx  -> loaded into a pandas DataFrame (df)
+- an "anchor" invoice row (anchor_row) selected by Invoice ID
+"""
+
+from __future__ import annotations
+
+# ======================================================================
+# Standard imports
+# ======================================================================
+import re
+from typing import Union
+
+import numpy as np
+import pandas as pd
+from openai import OpenAI
+
+# ======================================================================
+# 1. OpenAI configuration & prompt template
+# ======================================================================
+
+# OpenAI client (uses OPENAI_API_KEY from environment)
+_openai_client = OpenAI()
+
+# Prompt template used to ask the model for pandas code
+PROMPT_TEMPLATE = """
+You are a data analyst who writes ONLY pandas code.
+
+You must follow these rules:
+
+1. Use ONLY the variables: df, anchor_row, pd, np.
+2. Use ONLY the columns that exist in df.
+3. DO NOT invent new columns.
+4. DO NOT use markdown code fences or explanations.
+5. Your code must end by assigning exactly one variable:
+   - answer_value  (scalar)
+   - OR answer_df  (DataFrame or Series)
+6. When parsing date columns (such as 'Due Date'), always use:
+   pd.to_datetime(..., errors='coerce', dayfirst=True).
+7. IMPORTANT: For any logic about whether an invoice is overdue, paid,
+   unpaid, or pending, ALWAYS use the column df['Status'].
+   - Treat values like 'Paid', 'Unpaid', 'Overdue', 'Pending' etc.
+     as coming from df['Status'].
+   - NEVER use the column 'Payment Status' for overdue/paid/unpaid
+     filtering, even if it exists.
+8. For monetary totals, prefer a column named 'Total' if it exists.
+9. If you need to group by region, use the column 'Region' if it exists.
+
+Here is the DataFrame schema (columns and dtypes):
+{schema}
+
+Here are the actual values for the target invoice (anchor_row):
+{anchor}
+
+User question:
+"{question}"
+
+Write ONLY executable Python code that answers this question.
+Do NOT include backticks, comments, or explanations.
+"""
+
+# ======================================================================
+# 2. Safety configuration for generated code
+# ======================================================================
+
+# Regex patterns we do NOT allow in model-generated code
+FORBIDDEN_PATTERNS = [
+    r"import\s+os",
+    r"from\s+os",
+    r"import\s+sys",
+    r"from\s+sys",
+    r"import\s+subprocess",
+    r"from\s+subprocess",
+    r"subprocess",
+    r"os\.",
+    r"open\(",
+    r"__import__",
+    r"eval\(",
+    r"exec\(",
+]
+
+
+def is_code_safe(code: str) -> bool:
+    """
+    Quick safety check for generated code.
+
+    Returns
+    -------
+    bool
+        False if any forbidden pattern is found, True otherwise.
+    """
+    for pat in FORBIDDEN_PATTERNS:
+        if re.search(pat, code):
+            return False
+    return True
+
+
+# ======================================================================
+# 3. Data loading & anchor helpers
+# ======================================================================
+
+def load_database(path: str) -> pd.DataFrame:
+    """
+    Load the Excel database into a pandas DataFrame.
+
+    Parameters
+    ----------
+    path : str
+        Path to your Excel file, e.g. "your_database.xlsx".
+
+    Returns
+    -------
+    pd.DataFrame
+    """
+    df = pd.read_excel(path)
+    return df
+
+
+def get_anchor_row(
+    df: pd.DataFrame,
+    invoice_id: Union[str, int],
+    id_col: str = "Invoice No",
+) -> pd.Series:
+    """
+    Return the row in df corresponding to the given invoice_id.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Full invoice database.
+    invoice_id : str or int
+        ID of the invoice to anchor on (e.g. "B7820").
+    id_col : str
+        Column name that contains invoice IDs (default: "Invoice No").
+
+    Returns
+    -------
+    pd.Series
+        Single row representing the anchor invoice.
+
+    Raises
+    ------
+    ValueError
+        If the invoice_id is not found.
+    """
+    row = df[df[id_col] == invoice_id]
+    if row.empty:
+        raise ValueError(f"Invoice ID {invoice_id!r} not found in column {id_col!r}.")
+    return row.iloc[0]
+
+
+# ======================================================================
+# 4. Core sandbox executor for generated pandas code
+# ======================================================================
+
+def run_generated_code(
+    code: str,
+    df: pd.DataFrame,
+    anchor_row: pd.Series,
+):
+    """
+    Execute model-generated pandas code in a restricted environment.
+
+    Expectations for the generated code:
+    - It uses only df, anchor_row, pd, np.
+    - It sets exactly one of:
+        * answer_value (scalar)
+        * answer_df   (DataFrame or Series)
+
+    Parameters
+    ----------
+    code : str
+        Python code generated by the model (or written manually).
+    df : pd.DataFrame
+        Full invoice database.
+    anchor_row : pd.Series
+        Anchor row for invoice/customer-specific questions.
+
+    Returns
+    -------
+    Any
+        answer_value or answer_df, depending on what the code defines.
+    """
+
+    # 0) Strip out any import lines – they are unnecessary and break the sandbox
+    cleaned_lines = []
+    for line in code.splitlines():
+        stripped = line.lstrip()
+        if stripped.startswith("import ") or stripped.startswith("from "):
+            # Skip import lines entirely
+            continue
+        cleaned_lines.append(line)
+    code = "\n".join(cleaned_lines).strip()
+
+    # 1) Safety check
+    if not is_code_safe(code):
+        raise ValueError("Generated code failed safety checks. Inspect the code manually.")
+
+    # 2) Restricted globals / locals – disable builtins and expose only what we want
+    safe_globals = {
+        "__builtins__": {},   # disable normal builtins for safety
+        "pd": pd,
+        "np": np,
+        "df": df,
+        "anchor_row": anchor_row,
+
+        # Add safe built-ins
+        "str": str,
+        "int": int,
+        "float": float,
+        "len": len,
+        "range": range,
+        "min": min,
+        "max": max,
+        "abs": abs,
+    }
+    safe_locals: dict = {}
+
+    # 3) Execute the code
+    exec(code, safe_globals, safe_locals)
+
+    # 4) Extract result
+    if "answer_value" in safe_locals:
+        return safe_locals["answer_value"]
+    if "answer_df" in safe_locals:
+        return safe_locals["answer_df"]
+
+    raise ValueError("Generated code did not define answer_value or answer_df.")
+
+
+# ======================================================================
+# 5. OpenAI-based pandas code generation
+# ======================================================================
+
+def generate_pandas_code_openai(
+    question: str,
+    df: pd.DataFrame,
+    anchor_row: pd.Series,
+    model: str = "gpt-4.1-mini",
+) -> str:
+    """
+    Use OpenAI to generate pandas code that answers the question.
+
+    The code must be compatible with run_generated_code():
+    - use df, anchor_row, pd, np
+    - set answer_value or answer_df
+
+    Parameters
+    ----------
+    question : str
+        Natural-language question.
+    df : pd.DataFrame
+        Full invoice database.
+    anchor_row : pd.Series
+        Anchor row (can be empty Series for global questions).
+    model : str
+        OpenAI model name.
+
+    Returns
+    -------
+    str
+        Generated Python code snippet.
+    """
+    schema = {
+        "columns": list(df.columns),
+        "dtypes": df.dtypes.astype(str).to_dict(),
+    }
+
+    prompt = PROMPT_TEMPLATE.format(
+        schema=schema,
+        anchor=anchor_row.to_dict(),
+        question=question,
+    )
+
+    resp = _openai_client.responses.create(
+        model=model,
+        input=prompt,
+    )
+
+    # Extract plain text code
+    code = resp.output[0].content[0].text
+
+    # Strip any markdown code fences if the model accidentally adds them
+    code = code.replace("```python", "")
+    code = code.replace("```", "")
+    code = code.strip()
+
+    # ------------------------------------------------------------------
+    # HARDENING STEP:
+    # If the model accidentally uses "Payment Status" while the dataset
+    # also has a "Status" column, rewrite the code to use "Status"
+    # instead. This prevents empty results caused by filtering on the
+    # wrong column.
+    # ------------------------------------------------------------------
+    cols = set(df.columns.astype(str))
+    if "Status" in cols and "Payment Status" in cols:
+        # Replace both single-quoted and double-quoted variants
+        code = code.replace("['Payment Status']", "['Status']")
+        code = code.replace('["Payment Status"]', '["Status"]')
+
+    return code
+
+
+# ======================================================================
+# 5b. OpenAI-based natural language explanation of results
+# ======================================================================
+
+def generate_natural_response_openai(
+    question: str,
+    result,
+    df: pd.DataFrame | None = None,
+    model: str = "gpt-4.1-mini",
+) -> tuple[str, str]:
+    """
+    Use OpenAI to turn a computed result into:
+      - a natural-language answer
+      - a suggested follow-up question
+
+    The answer MUST be grounded only in the invoice data.
+    If the question cannot be answered from the data, the answer must say so.
+    """
+
+    result_repr = repr(result)
+    result_type = type(result).__name__
+    columns = list(df.columns) if df is not None else []
+
+    prompt = f"""
+You are a data analyst working with an INVOICE DATABASE.
+
+You MUST base your answer ONLY on:
+- the computed result, and
+- the list of available columns in the dataset.
+
+You are NOT allowed to add outside world knowledge (no generic country or company descriptions).
+If the user's question cannot reasonably be answered from the data, you MUST say so explicitly.
+
+Your response format MUST be:
+
+ANSWER: <one short, clear paragraph answering the question based on the data>
+FOLLOW_UP: <one concise, helpful follow-up question the user could ask next, based on the same data>
+
+Examples of good follow-up questions:
+- "Would you like to see the top 5 customers by total spending in this region?"
+- "Do you want a breakdown of overdue invoices by month for this customer?"
+
+Avoid vague follow-ups like "Do you want anything else?" or questions that require external knowledge.
+
+User question:
+{question}
+
+Result type: {result_type}
+Result (Python repr):
+{result_repr}
+
+Dataset columns:
+{columns}
+"""
+
+    resp = _openai_client.responses.create(
+        model=model,
+        input=prompt,
+    )
+    text = resp.output[0].content[0].text.strip()
+
+    # Simple parsing of ANSWER: ... FOLLOW_UP: ...
+    answer_text = text
+    follow_up = ""
+
+    if "ANSWER:" in text and "FOLLOW_UP:" in text:
+        try:
+            answer_part, follow_part = text.split("FOLLOW_UP:", 1)
+            answer_text = answer_part.replace("ANSWER:", "").strip()
+            follow_up = follow_part.strip()
+        except Exception:
+            # Fallback: keep whole text as answer
+            answer_text = text
+            follow_up = ""
+
+    return answer_text, follow_up
+
+
+def answer_question_openai(
+    df: pd.DataFrame,
+    invoice_id: Union[str, int],
+    question: str,
+    id_col: str = "Invoice No",
+    model: str = "gpt-4.1-mini",
+    show_code: bool = True,
+):
+    """
+    Full pipeline using OpenAI for invoice-specific questions.
+
+    Steps:
+    1. Locate anchor_row for the given invoice_id.
+    2. Ask OpenAI to generate pandas code.
+    3. Execute the code in the sandbox.
+    4. Return the result.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Full invoice database.
+    invoice_id : str or int
+        Anchor invoice ID.
+    question : str
+        Natural-language question about that invoice/customer.
+    id_col : str
+        Column containing invoice IDs.
+    model : str
+        OpenAI model name.
+    show_code : bool
+        Whether to print the generated code.
+
+    Returns
+    -------
+    Any
+        Scalar (answer_value) or DataFrame/Series (answer_df).
+    """
+    anchor_row = get_anchor_row(df, invoice_id, id_col=id_col)
+
+    code = generate_pandas_code_openai(
+        question=question,
+        df=df,
+        anchor_row=anchor_row,
+        model=model,
+    )
+
+    if show_code:
+        print(f"Generated code for invoice {invoice_id}:")
+        print("---- CODE START ----")
+        print(code)
+        print("---- CODE END ----")
+
+    result = run_generated_code(code, df, anchor_row)
+    return result
+
+
+# ======================================================================
+# 6. Smart wrapper – global vs anchor-based questions
+# ======================================================================
+
+# Keywords suggesting that a question is about a specific invoice/customer context
+ANCHOR_KEYWORDS = [
+    "this invoice",
+    "this customer",
+    "same region",
+    "same product",
+    "same products",
+]
+
+
+def _looks_anchor_based(question: str) -> bool:
+    """
+    Heuristic: decide if the question is about a specific invoice/customer/region
+    (i.e., needs an anchor_row).
+    """
+    q = question.lower()
+    return any(keyword in q for keyword in ANCHOR_KEYWORDS)
+
+
+def _extract_invoice_from_question(
+    question: str,
+    df: pd.DataFrame,
+    id_col: str,
+) -> str | None:
+    """
+    Try to detect an invoice number mentioned explicitly in the question.
+
+    Strategy:
+    1. Check if any existing Invoice No value appears literally in the question.
+    2. Optionally, use a regex for patterns like 'B7820', 'INV1234', etc.
+
+    Returns
+    -------
+    str or None
+        Matching invoice ID if found in df and in the question; otherwise None.
+    """
+    q_upper = question.upper()
+    unique_ids = df[id_col].astype(str).unique()
+
+    # Option 1: literal match of existing invoice IDs in question text
+    for inv in unique_ids:
+        inv_str = str(inv).upper()
+        if inv_str in q_upper:
+            return inv
+
+    # Option 2: regex for patterns like 'B7820' (one letter + 3–6 digits)
+    m = re.search(r"[A-Z]\d{3,6}", q_upper)
+    if m:
+        candidate = m.group(0)
+        if candidate in unique_ids:
+            return candidate
+
+    return None
+
+
+def answer_question_smart(
+    df: pd.DataFrame,
+    question: str,
+    id_col: str = "Invoice No",
+    invoice_id: str | None = None,
+    model: str = "gpt-4.1-mini",
+):
+    """
+    High-level entry point for natural-language questions.
+
+    Behaviour:
+    - If the question looks GLOBAL (no 'this invoice / this customer / same region'),
+      we do NOT require an anchor invoice.
+    - If the question looks ANCHOR-BASED, we try to infer the invoice_id from the
+      question text. If we still can't, we fall back to the 'invoice_id' parameter.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Full invoice database.
+    question : str
+        User's natural-language question.
+    id_col : str
+        Column name for invoice IDs (default: 'Invoice No').
+    invoice_id : str or None
+        Optional explicit invoice ID to use as anchor.
+    model : str
+        OpenAI model name.
+
+    Returns
+    -------
+    Any
+        Scalar (answer_value) or DataFrame/Series (answer_df).
+
+    Raises
+    ------
+    ValueError
+        If an anchor is required but no invoice_id can be determined.
+    """
+    # 1) Decide if this question likely needs an anchor invoice/customer
+    needs_anchor = _looks_anchor_based(question)
+
+    if needs_anchor:
+        # Try to infer invoice from the question text itself
+        inferred_invoice = _extract_invoice_from_question(question, df, id_col)
+        final_invoice_id = inferred_invoice or invoice_id
+
+        if final_invoice_id is None:
+            raise ValueError(
+                "This question appears to be about a specific invoice/customer, "
+                "but no invoice_id was found in the question or provided explicitly."
+            )
+
+        anchor_row = get_anchor_row(df, final_invoice_id, id_col=id_col)
+    else:
+        # Global question: we don't need a specific row; anchor_row can be empty
+        anchor_row = pd.Series(dtype=object)
+
+    # 2) Generate pandas code from the model
+    code = generate_pandas_code_openai(
+        question=question,
+        df=df,
+        anchor_row=anchor_row,
+        model=model,
+    )
+
+    print("Generated code:\n", code, "\n---")
+
+    # 3) Execute the code
+    result = run_generated_code(code, df, anchor_row)
+    return result
+
+# ======================================================================
+# 8. High-level "chatty" helper: compute + explain
+# ======================================================================
+
+def answer_chatty_openai(
+    df: pd.DataFrame,
+    question: str,
+    id_col: str = "Invoice No",
+    invoice_id: str | None = None,
+    model_code: str = "gpt-4.1-mini",
+    model_nl: str = "gpt-4.1-mini",
+    show_code: bool = True,
+):
+    # 1) Compute raw result using the smart engine
+    try:
+        raw_result = answer_question_smart(
+            df=df,
+            question=question,
+            id_col=id_col,
+            invoice_id=invoice_id,
+            model=model_code,
+        )
+    except ValueError as e:
+        msg = (
+            "I couldn't find any matching records in the database for your question. "
+            f"Details: {e}"
+        )
+        return {
+            "answer_text": msg,
+            "follow_up": "",
+            "raw_result": None,
+        }
+    except IndexError:
+        msg = (
+            "I ran your query, but there were no invoices/customers/regions matching "
+            "that condition in the Excel database."
+        )
+        return {
+            "answer_text": msg,
+            "follow_up": "",
+            "raw_result": None,
+        }
+    except Exception:
+        raise
+
+    # 2) Turn raw result into a natural-language answer + follow-up
+    answer_text, follow_up = generate_natural_response_openai(
+        question=question,
+        result=raw_result,
+        df=df,
+        model=model_nl,
+    )
+
+    return {
+        "answer_text": answer_text,
+        "follow_up": follow_up,
+        "raw_result": raw_result,
+    }
+
+
+# ======================================================================
+# 7. Manual helper for pasted pandas snippets (notebook use)
+# ======================================================================
+
+def answer_with_pasted_code(
+    df: pd.DataFrame,
+    invoice_id: Union[str, int],
+    code: str,
+    id_col: str = "Invoice No",
+    show_code: bool = True,
+):
+    """
+    Notebook-friendly helper: given an invoice_id and a code snippet,
+    execute the snippet and return the result.
+
+    This bypasses the LLM and is useful for:
+    - testing the sandbox
+    - writing custom analytics by hand
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Invoice database.
+    invoice_id : str or int
+        Anchor invoice ID.
+    code : str
+        Model-generated or manually written pandas code snippet.
+    id_col : str
+        Name of the invoice ID column (default: "Invoice No").
+    show_code : bool
+        Whether to print the code before running it.
+
+    Returns
+    -------
+    Any
+        Result of running the generated code (scalar or DataFrame).
+    """
+    anchor_row = get_anchor_row(df, invoice_id, id_col=id_col)
+
+    if show_code:
+        print(f"Running generated code for invoice: {invoice_id}")
+        print("---- CODE START ----")
+        print(code)
+        print("---- CODE END ----")
+
+    result = run_generated_code(code, df, anchor_row)
+    return result
