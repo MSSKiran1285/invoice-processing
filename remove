@@ -1,0 +1,92 @@
+<think>**Refining appraisal content**
+
+I'm focusing on improving the grammar and refining the content for the appraisal. I need to include a brief self-evaluation, highlight my strengths, summarize stakeholder feedback, outline my development plan, and set specific goals for 2026. It’s important to keep everything concise, so I'll ensure the language is clear and professional. Also, I should correct and include the learning and development list. Time to start drafting this!</think>Here’s a polished, high‑impact version of your performance appraisal with corrections, tighter language, and leadership/impact framing. You can paste this directly into your system.
+
+Title: 2025 Performance Appraisal — Program Delivery (SAP/Oracle) and Learning & Development
+
+Executive Summary
+- Delivered complex, multi‑region testing programs across SAP and Oracle with consistent on‑time, high‑quality releases.
+- Implemented Lean improvements that streamlined test and defect management and reduced cycle times.
+- Built and mentored a high‑performing Genpact test team while strengthening stakeholder confidence through transparent reporting and cross‑functional orchestration.
+- Advanced technical capabilities in GenAI and Cloud, directly applicable to test automation and delivery acceleration.
+
+Key Achievements
+
+1) Project Alpha Uplift (EU & LATAM)
+- Scope: Conversion from legacy Chart of Accounts to new Chart of Accounts; one of the largest scopes delivered in Alpha.
+- Role & Execution: Assumed transition from an outgoing contract resource; led test management for the April ’25 release.
+- Delivery:
+  - Directed test automation execution, leading the Genpact automation team.
+  - Collaborated with GEV Process Excellence to identify scenarios, build scripts, and secure data/environment readiness.
+  - Led SIT and UAT kick‑offs; ensured rigorous defect triage and closure.
+  - Seamlessly mentored and transitioned responsibilities to another Genpact team member to ensure continuity.
+- Impact: Delivered scope with zero critical post‑go‑live issues and maintained release timelines while scaling automation coverage.
+
+2) Lean Test & Defect Management Implementation
+- Activity: Partnered with GEV to review end‑to‑end test and defect workflows.
+- Methods: Conducted value stream mapping and 5 Whys analysis; standardized test scenarios and removed redundant steps.
+- Outcome: Implemented improvements in the April ’25 release, resulting in measurable cycle‑time reduction and clearer handoffs, improving throughput and team productivity.
+
+3) Echo Releases (April ’25 and Oct ’25)
+- Role: Stream lead for testing.
+- Delivery:
+  - Worked directly with business stakeholders to define scope, identify scenarios, and author test cases.
+  - Managed ALM, orchestrated multi‑application teams for end‑to‑end scenarios.
+  - Led daily status calls and executive reporting; drove cross‑team accountability.
+- Impact: Delivered both releases seamlessly with improved defect turnaround and greater transparency on readiness.
+
+4) Alpha BOM Kitting (Oct ’25)
+- Role: Test lead for SIT and UAT.
+- Delivery:
+  - Coordinated with GEV and Genpact development teams.
+  - Defined test scope; led phase kick‑offs; managed ALM and defect lifecycle; established reporting cadence.
+- Impact: Achieved smooth go‑live by proactively mitigating integration and data‑dependency risks.
+
+5) Sierra Nuclear — Poland Pilot
+- Role: Test program coordinator.
+- Delivery:
+  - Stood up a new Genpact team; worked with SMEs and functional consultants to build scenarios, structure ALM scope, allocate test execution, and plan the schedule.
+  - Led daily execution and defect triage calls from start to finish.
+- Impact: Delivered a controlled pilot with high execution discipline and predictable outcomes.
+
+6) Bi‑Weekly GEV Connect
+- Activity: Led bi‑weekly updates on projects managed by the Genpact testing team.
+- Impact: Strengthened stakeholder trust through crisp status, risk/issue management, and early decision alignment.
+
+Team Leadership and People Management
+- Mentored team members to independently lead their respective projects; held regular connects to surface and resolve concerns.
+- Fostered a learning culture by encouraging participation in certifications and internal knowledge sharing.
+- Built a resilient bench for continuity across programs and peak delivery windows.
+
+Solutioning and Pre‑Sales
+- Contributed to pre‑sales preparation for Lamb Weston and GEV 2026 bids, including approach notes for test strategy, automation, and delivery governance.
+
+Learning & Development
+- Successfully completed GenAI Developer Academy; designed and developed a GenAI chatbot and received positive feedback from the program team.
+- Completed multiple certifications across Cloud and AI tracks from AWS and Google.
+- Won the “Tech Ninja” contest for completing an AWS certification.
+
+Core Strengths Demonstrated
+- Delivery Leadership: Owns outcomes end‑to‑end; ensures disciplined execution and on‑time releases.
+- Stakeholder Management: Clear, proactive communication; effective risk/issue management; cross‑team alignment.
+- Process Excellence: Applies Lean tools (VSM, 5 Whys) to simplify workflows and reduce cycle times.
+- Quality and Automation: Expands automation coverage; emphasizes defect prevention and fast triage/closure.
+- Talent Development: Coaches and enables team members to lead; builds strong succession.
+
+Selected Metrics and Evidence
+- Release Reliability: Multiple on‑time releases (Alpha April ’25, Echo April ’25 and Oct ’25, Alpha BOM Kitting Oct ’25) with no critical post‑go‑live defects reported.
+- Cycle‑Time Improvement: Lean implementation in April ’25 reduced testing/defect management cycle times and removed redundant steps in standardized scenarios.
+- Automation Leverage: Increased automation utilization to accelerate regression and improve consistency in SIT/UAT.
+
+Areas for Continued Focus
+- Expand end‑to‑end automation across critical business flows to further compress regression timelines.
+- Establish KPI dashboards (e.g., defect aging, test execution burn‑down, automation ROI) for real‑time visibility.
+- Deepen cloud test tooling expertise (e.g., environment as code, synthetic data generation) to remove environment bottlenecks.
+
+Goals for 2026
+- Delivery Excellence: Achieve ≥95% on‑time release rate across managed programs with zero Sev‑1 post‑go‑live defects.
+- Automation at Scale: Increase automated regression coverage by 20–30% on priority programs; integrate GenAI‑assisted test design and defect triage.
+- Lean Maturity: Reduce average defect cycle time by 15–20% via improved triage workflows and ownership SLAs.
+- Talent & Succession: Develop two next‑gen test leads capable of independently running E2E releases.
+- Thought Leadership: Publish two internal playbooks (Lean Test Ops, GenAI in Test) and contribute to at least one external forum or webinar.
+
