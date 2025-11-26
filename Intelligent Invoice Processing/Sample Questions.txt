@@ -1,0 +1,21 @@
+How many people purchased the same product(s) as the customer in this Invoice?
+What is the total revenue generated from the region this customer belongs to?
+What is the average discount provided for the products purchased by the customer in this Invoice?
+Find the salesperson with the highest revenue in the region of the customer in this Invoice.
+What is the most commonly purchased product in the same region as the customer in this Invoice?
+Calculate the total tax collected from all invoices in the same region as the customer in this Invoice.
+What is the average spending per customer in the region this customer belongs to?
+How many invoices are overdue in the same region as the customer in this Invoice?
+What is the total shipping cost for the products purchased by this customer in the Invoice?
+What is the percentage of invoices marked as 'Paid' in the region this customer belongs to?
+Which payment method is most commonly used in the same region as the customer in this Invoice?
+What is the average quantity purchased for the products listed in this Invoice?
+Find the customer with the highest spending in the same region as the customer in this Invoice.
+What is the sum of all pending payments for the same region as the customer in this Invoice?
+What is the earliest due date for invoices in the region this customer belongs to?
+Find the invoice with the highest total amount in the same region as the customer in this Invoice.
+What is the average tax percentage for the products purchased by the customer in this Invoice?
+How many customers have purchased the same quantity of the product(s) as listed in this Invoice?
+What is the total shipping cost for invoices marked as 'Overdue' in the region this customer belongs to?
+Calculate the total amount spent on products purchased by this customer in the Invoice across all invoices.
+ 
